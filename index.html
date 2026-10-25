@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>iMuseum — Museo virtual 3D</title>
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <section id="start" class="overlay">
+      <div class="card">
+        <p class="eyebrow">Museo virtual 3D</p>
+        <h1>iMuseum</h1>
+        <p class="sub">Elige una carpeta y cada subcarpeta se convertirá en una sala recorrible: imágenes en cuadros, videos en pantallas y audios en gramófonos.</p>
+        <div class="actions">
+          <button id="pick" class="primary">Elegir carpeta</button>
+          <button id="demo" class="secondary" hidden>Probar con la demo</button>
+          <button id="cancelScan" class="ghost" hidden>Cancelar</button>
+          <button id="startSettings" class="ghost">Ajustes</button>
+        </div>
+        <input id="dirInput" type="file" webkitdirectory directory multiple hidden />
+        <p id="progress" class="progress"></p>
+        <p id="progressDir" class="progressDir"></p>
+        <div id="recent" hidden>
+          <div class="recentHead">
+            <p class="eyebrow">Carpetas recientes</p>
+            <button id="clearRecent" class="linkBtn" title="Vacía la lista; no borra ninguna carpeta">Borrar historial</button>
+          </div>
+          <ul id="recentList"></ul>
+        </div>
+        <p class="note" id="note">Los archivos se leen directamente desde el disco. Nada se copia ni se sube a internet.</p>
+        <p class="note" id="cacheInfo" hidden></p>
+      </div>
+    </section>
+
+    <div id="hud" hidden>
+      <div id="roomName"></div>
+      <canvas id="minimap" width="220" height="220"></canvas>
+      <div id="crosshair"></div>
+      <div id="focus"><div id="focusTitle"></div><div id="focusHint"></div></div>
+      <div id="toast"></div>
+      <div id="fps" hidden></div>
+    </div>
+
+    <section id="pause" class="overlay" hidden>
+      <div class="card">
+        <p class="eyebrow" id="pauseEyebrow">Pausa</p>
+        <h2 id="pauseTitle"></h2>
+        <p class="sub" id="pauseStats"></p>
+        <p class="cta">Haz clic para entrar</p>
+        <table class="keys">
+          <tr><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td>Caminar (con <kbd>Shift</kbd> corres)</td></tr>
+          <tr><td>Ratón</td><td>Mirar alrededor</td></tr>
+          <tr><td><kbd>E</kbd> / Clic</td><td>Ampliar imagen · Sonido del video · Reproducir audio</td></tr>
+          <tr><td><kbd>F</kbd></td><td>Ver el video en grande</td></tr>
+          <tr><td><kbd>Tab</kbd></td><td>Directorio de salas</td></tr>
+          <tr><td><kbd>M</kbd></td><td>Mostrar / ocultar mapa</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Pausa</td></tr>
+        </table>
+        <div class="actions">
+          <button id="openDir" class="secondary">Directorio de salas</button>
+          <button id="pauseSettings" class="secondary">Ajustes</button>
+          <button id="changeFolder" class="ghost">Cambiar carpeta</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="settingsPanel" class="overlay" hidden>
+      <div class="card wide">
+        <div class="dirHead">
+          <h2>Ajustes</h2>
+          <span class="note settingsNote">Los cambios se aplican al momento y se guardan.</span>
+        </div>
+        <form id="settingsForm" onsubmit="return false"></form>
+        <div class="actions settingsActions">
+          <button id="settingsDone" class="primary">Listo</button>
+          <button id="settingsReset" class="ghost">Restablecer valores</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="directory" class="overlay" hidden>
+      <div class="card wide">
+        <div class="dirHead">
+          <h2>Salas</h2>
+          <input id="dirSearch" type="search" placeholder="Buscar sala o carpeta…" autocomplete="off" />
+        </div>
+        <ul id="dirList"></ul>
+        <p class="note">Esc para volver</p>
+      </div>
+    </section>
+
+    <section id="lightbox" hidden>
+      <button class="lbBtn" id="lbClose" title="Cerrar (Esc)">✕</button>
+      <button class="secondary" id="lbReveal" hidden>Mostrar en la carpeta</button>
+      <button class="lbBtn" id="lbPrev" title="Anterior (←)">‹</button>
+      <div id="lbMedia"></div>
+      <button class="lbBtn" id="lbNext" title="Siguiente (→)">›</button>
+      <div id="lbCaption"></div>
+    </section>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "image": ["jpg", "jpeg", "jfif", "png", "gif", "webp", "bmp", "avif", "svg", "ico"],
+  "video": ["mp4", "m4v", "webm", "mov", "ogv", "mkv"],
+  "audio": ["mp3", "wav", "ogg", "oga", "m4a", "aac", "flac", "opus", "weba"],
+  "skipDirs": ["node_modules", "$RECYCLE.BIN", "System Volume Information", "__MACOSX", "@eaDir", "lost+found"]
+}

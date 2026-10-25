@@ -1,0 +1,10 @@
+node_modules/
+dist/
+release/
+# multimedia de ejemplo: se genera con `npm run demo`
+public/demo/
+# configuración local del editor y de Claude Code
+.claude/
+.idea/
+.vscode/
+*.log

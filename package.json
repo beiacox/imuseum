@@ -1,0 +1,96 @@
+{
+  "name": "imuseum",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Museo virtual 3D que convierte una carpeta de fotos, videos y música en salas que se recorren a pie",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "demo": "bash scripts/make-demo.sh",
+    "app": "node scripts/electron-dev.mjs",
+    "app:prod": "vite build && electron .",
+    "dist": "vite build && electron-builder",
+    "dist:linux": "vite build && electron-builder --linux",
+    "dist:win": "vite build && electron-builder --win",
+    "dist:mac": "vite build && electron-builder --mac",
+    "test:e2e": "vite build && node scripts/selftest.mjs",
+    "screenshots": "vite build && node scripts/screenshots.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "three": "^0.186.1",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
+    "vite": "^8.3.4"
+  },
+  "main": "electron/main.cjs",
+  "author": {
+    "name": "beiacox",
+    "email": "46251601+beiacox@users.noreply.github.com",
+    "url": "https://github.com/beiacox"
+  },
+  "homepage": "https://github.com/beiacox/imuseum",
+  "build": {
+    "appId": "app.imuseum.desktop",
+    "productName": "iMuseum",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "shared/**/*",
+      "build/icon.png",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Graphics",
+      "icon": "build/icon.png",
+      "synopsis": "Museo virtual 3D a partir de tus carpetas de fotos, videos y música",
+      "maintainer": "beiacox <46251601+beiacox@users.noreply.github.com>"
+    },
+    "deb": {
+      "packageCategory": "graphics"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.photography",
+      "icon": "build/icon.png"
+    }
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/beiacox/imuseum.git"
+  },
+  "bugs": {
+    "url": "https://github.com/beiacox/imuseum/issues"
+  },
+  "keywords": [
+    "museo",
+    "museum",
+    "3d",
+    "threejs",
+    "electron",
+    "galería",
+    "fotos",
+    "videos",
+    "visor multimedia"
+  ]
+}
