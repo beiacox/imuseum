@@ -32,6 +32,11 @@
         </div>
         <p class="note" id="note">Los archivos se leen directamente desde el disco. Nada se copia ni se sube a internet.</p>
         <p class="note" id="cacheInfo" hidden></p>
+        <div id="updateBox" hidden>
+          <span id="updateText"></span>
+          <button id="updateAction" class="primary"></button>
+        </div>
+        <p class="note" id="versionLine" hidden></p>
       </div>
     </section>
 
@@ -42,6 +47,12 @@
       <div id="focus"><div id="focusTitle"></div><div id="focusHint"></div></div>
       <div id="toast"></div>
       <div id="fps" hidden></div>
+      <div id="scanChip" hidden></div>
+      <div id="tourBar" hidden>
+        <div class="tourTitle"><span class="tag">Visita guiada</span> <b id="tourWhat"></b></div>
+        <div class="tourMeta" id="tourMeta"></div>
+        <div class="tourKeys">Espacio / A: pausa · ← → / LB RB: anterior y siguiente · Esc / B: salir</div>
+      </div>
     </div>
 
     <section id="pause" class="overlay" hidden>
@@ -56,11 +67,15 @@
           <tr><td><kbd>E</kbd> / Clic</td><td>Ampliar imagen · Sonido del video · Reproducir audio</td></tr>
           <tr><td><kbd>F</kbd></td><td>Ver el video en grande</td></tr>
           <tr><td><kbd>Tab</kbd></td><td>Directorio de salas</td></tr>
+          <tr><td><kbd>G</kbd></td><td>Visita guiada por las salas</td></tr>
+          <tr><td>Mando</td><td>Sticks para caminar y mirar · A interactuar · Y directorio · X visita</td></tr>
           <tr><td><kbd>M</kbd></td><td>Mostrar / ocultar mapa</td></tr>
           <tr><td><kbd>Esc</kbd></td><td>Pausa</td></tr>
         </table>
         <div class="actions">
           <button id="openDir" class="secondary">Directorio de salas</button>
+          <button id="startTour" class="secondary">Visita guiada (G)</button>
+          <button id="updateMuseum" class="primary" hidden>Actualizar museo</button>
           <button id="pauseSettings" class="secondary">Ajustes</button>
           <button id="changeFolder" class="ghost">Cambiar carpeta</button>
         </div>
@@ -73,11 +88,34 @@
           <h2>Ajustes</h2>
           <span class="note settingsNote">Los cambios se aplican al momento y se guardan.</span>
         </div>
+        <div id="rebuildBar" hidden>
+          <span>Los cambios de arquitectura se aplican al reconstruir el museo.</span>
+          <button id="rebuildNow" class="primary">Reconstruir museo</button>
+        </div>
         <form id="settingsForm" onsubmit="return false"></form>
         <div class="actions settingsActions">
           <button id="settingsDone" class="primary">Listo</button>
           <button id="settingsReset" class="ghost">Restablecer valores</button>
         </div>
+      </div>
+    </section>
+
+    <div id="tourFade"></div>
+
+    <section id="elevatorPanel" class="overlay" hidden>
+      <div class="card">
+        <p class="eyebrow">Ascensor</p>
+        <h2>¿A qué piso?</h2>
+        <ul id="elevatorList" class="pickList"></ul>
+        <p class="note">Teclas 0–9 para elegir · Esc para cerrar</p>
+      </div>
+    </section>
+
+    <section id="ride" hidden>
+      <div class="rideBox">
+        <div class="rideArrow" id="rideArrow">▲</div>
+        <div class="rideFloor" id="rideFloor">0</div>
+        <div class="rideText" id="rideText"></div>
       </div>
     </section>
 

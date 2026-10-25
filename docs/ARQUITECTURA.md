@@ -35,6 +35,20 @@ sin Electron (con las limitaciones del navegador).
   por archivo; no puede pedir rutas arbitrarias.
 - Envía progreso cada 150 ms y se puede cancelar.
 
+### Escaneos guardados e incrementales
+
+- Cada escaneo se guarda en `userData/scans/<sha1(ruta)>.json.gz` como un mapa
+  `carpeta → { fecha de modificación, archivos [nombre, tamaño, fecha], subcarpetas }`.
+- Al reabrir, el museo se construye con ese mapa sin tocar el disco. Después, `rescan` vuelve
+  a recorrer el árbol haciendo un único `stat` por carpeta: si su fecha de modificación no
+  cambió, su lista sigue siendo válida (en los sistemas de archivos habituales la fecha de
+  una carpeta cambia al añadir, borrar o renombrar algo dentro). Solo se releen las que
+  cambiaron.
+- Los **ids** de los archivos son estables por ruta durante la sesión, así el museo abierto
+  sigue sirviendo sus archivos mientras se comprueba si hubo cambios.
+- Limitación: un archivo modificado sin cambiar de nombre no altera la fecha de su carpeta;
+  se detecta la próxima vez que esa carpeta se relea.
+
 ## 2. Protocolo `imuseum://` — `electron/main.cjs`
 
 Un único esquema privilegiado (`standard`, `secure`, `stream`) sirve:
@@ -43,7 +57,7 @@ Un único esquema privilegiado (`standard`, `secure`, `stream`) sirve:
 |---|---|
 | `imuseum://app/…` | La app compilada (`dist/`) |
 | `imuseum://app/__media/<id>` | El archivo original, con soporte de `Range` (respuestas 206) |
-| `imuseum://app/__thumb/<id>?s=<px>` | Miniatura en caché para esa resolución (404 si no existe) |
+| `imuseum://app/__thumb/<id>?s=<px>` | Miniatura en caché para esa resolución (404 si no existe); `s=400` es el fotograma de un video |
 
 Los videos y audios se reproducen leyendo trozos del disco según avanzan; nada se carga
 entero en memoria.
@@ -68,6 +82,13 @@ entero en memoria.
 Todas las transformaciones son traslaciones más rotaciones de 0 o 180° alrededor de Y, así
 que cualquier caja local sigue siendo una caja alineada a los ejes en el mundo. Eso
 simplifica colisiones y búsquedas espaciales.
+
+### Pisos de la galería
+
+Con más alas que «Alas por piso» (Ajustes), la galería principal se repite en pisos
+separados 22 m (cabe una torre de 3 pisos sobre un pasillo elevado sin tocar el piso de
+arriba). Todos comparten el vestíbulo, donde está la cabina del ascensor. La distancia para
+construir salas pondera la separación vertical ×4, así no se construyen las de otros pisos.
 
 ### Tipos de sala como datos
 
@@ -117,6 +138,25 @@ caben las obras y los gramófonos, y reparte las obras por las líneas en orden 
 - **Audios**: `<audio>` + `PositionalAudio` + `AnalyserNode` para el visualizador.
 - Las cartelas son texturas de canvas creadas al activar la sala y liberadas al desactivarla.
 
+### Fotogramas de video
+
+La primera vez que una pantalla reproduce su video se captura un fotograma real (pasado el
+primer segundo, que suele ser negro) y se guarda como miniatura de 400 px. Al construir una
+sala, las pantallas cargan ese fotograma y lo muestran —y emiten su color, atenuado— hasta
+que el visitante se acerca lo bastante para reproducir el video.
+
+### Formatos especiales y EXIF — `src/convert.js`, `src/convert.worker.js`, `src/exif.js`
+
+- **EXIF**: se leen los primeros 256 KB (JPEG: segmento APP1; TIFF y RAW basados en TIFF:
+  directamente; CR3: caja CMT1). En HEIC el EXIF suele ir al final del archivo: se localiza con
+  la tabla de elementos de la caja `meta` (`iinf` + `iloc`) y se pide solo ese trozo.
+- **HEIC/HEIF**: se decodifica con libheif (WebAssembly) en un Web Worker; la librería se carga
+  como archivo aparte la primera vez que hace falta.
+- **RAW**: en el worker se busca la mayor vista previa JPEG incrustada (base o progresiva; se
+  descartan los JPEG sin pérdida que algunas cámaras usan para los datos del sensor) y se
+  aplica la orientación del RAW si la vista previa no trae la suya.
+- El visor a pantalla completa usa una versión JPEG convertida (se guardan las 12 últimas).
+
 ## 7. Iluminación — `src/lighting.js`
 
 - La luz ambiental (ajuste) controla la luz hemisférica, el entorno y el brillo de techos y
@@ -140,20 +180,35 @@ caben las obras y los gramófonos, y reparte las obras por las líneas en orden 
   cuerpo (de 0,5 m sobre los pies hasta la cabeza). Así se pasa por debajo de un balcón pero
   no a través de una barandilla.
 
-## 9. Ajustes — `src/settings.js`
+## 9. Visita guiada y mando — `src/tour.js`, `src/gamepad.js`
+
+- La visita calcula sus paradas con los datos de la sala (no necesita que esté construida):
+  la entrada y, para cada obra, un punto delante de ella a la altura de los ojos. La cámara
+  se desliza entre paradas cercanas y usa un fundido a negro en saltos largos o con cambio
+  de nivel, para no atravesar paredes ni forjados. Al salir, el visitante queda de pie en el
+  suelo más cercano.
+- El mando usa la Gamepad API (distribución estándar). En «modo mando» no se captura el
+  ratón: el jugador se mueve con el stick (velocidad proporcional) y todas las pantallas
+  (pausa, directorio, ascensor, visor, ajustes, visita) responden a los botones.
+
+## 10. Ajustes — `src/settings.js`
 
 Un esquema único define cada ajuste (tipo, rango, valor por defecto, ayuda). La pantalla de
 Ajustes se genera a partir de él, los valores se validan al cargar y se guardan en
 `localStorage` (en la app de escritorio vive en la carpeta de datos de la app). Los cambios
 se aplican en vivo mediante `onSettingsChange`.
 
-## 10. Pruebas y capturas
+## 11. Actualizaciones y publicación
+
+Ver [FIRMA-Y-ACTUALIZACIONES.md](FIRMA-Y-ACTUALIZACIONES.md).
+
+## 12. Pruebas y capturas
 
 `scripts/lib/electron-cdp.mjs` arranca la app con una carpeta de datos temporal y la
 controla por el protocolo de DevTools. Lo usan:
 
-- `scripts/selftest.mjs`: prueba de extremo a extremo (escaneo, rangos, carga de todas las
-  salas, caché, persistencia de ajustes tras reiniciar, historial).
+- `scripts/selftest.mjs`: prueba de extremo a extremo con 19 comprobaciones sobre una copia
+  temporal de la demo más archivos HEIC/RAW/EXIF generados por `scripts/make-fixtures.sh`.
 - `scripts/screenshots.mjs`: construye un museo de muestra con la demo y captura las vistas
   de `docs/screenshots`.
 

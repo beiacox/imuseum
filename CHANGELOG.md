@@ -1,5 +1,40 @@
 # Cambios
 
+## 0.3.0 — 2026-10
+
+Todo lo que estaba en la hoja de ruta de la 0.2.0.
+
+### Colecciones enormes
+- **Escaneos guardados**: reabrir una carpeta es instantáneo; los cambios se buscan en
+  segundo plano releyendo solo las carpetas modificadas, y **U** actualiza el museo sin
+  perder la sala actual.
+- **Galería de varios pisos con ascensor** cuando hay muchas alas (ajustable).
+- **Fotogramas en las pantallas lejanas**, guardados en la caché la primera vez que se ve
+  cada video.
+
+### Fotos
+- **EXIF** en cartelas y visor: cámara, objetivo, fecha de captura, diafragma, velocidad,
+  ISO y focal (JPEG, TIFF, RAW, HEIC y CR3).
+- **HEIC/HEIF** decodificados con libheif (WebAssembly, en un worker).
+- **RAW** (CR2, CR3, NEF, ARW, DNG, RAF, ORF, RW2, PEF…) mediante su vista previa JPEG
+  incrustada, con la orientación correcta.
+
+### Recorrido
+- **Visita guiada** (G o X en el mando): recorre las salas, se detiene ante cada obra y
+  reproduce videos y audios.
+- **Mando** (Xbox/PlayStation): caminar, mirar e interactuar en todas las pantallas sin ratón.
+
+### Ajustes
+- **Arquitectura**: frecuencia de desniveles, activar o desactivar cada tipo de sala y alas
+  por piso, con botón «Reconstruir museo».
+- **Visita guiada**, **mando**, **escaneo**, **EXIF** y **actualizaciones**.
+
+### Distribución
+- **Actualizaciones automáticas** desde GitHub Releases (AppImage, Windows, macOS; el .deb
+  avisa y abre la página de descargas).
+- **Flujo de GitHub Actions** que compila Linux, Windows y macOS al subir una etiqueta y deja
+  un borrador de release; **firma de código** opcional mediante secretos del repositorio.
+
 ## 0.2.0 — 2026-10
 
 Primera versión publicada.

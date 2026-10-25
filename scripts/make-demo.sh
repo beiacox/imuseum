@@ -36,6 +36,19 @@ ff -f lavfi -i "aevalsrc='0.25*sin(2*PI*110*t)*(0.6+0.4*sin(2*PI*0.5*t))+0.15*si
 ff -f lavfi -i "aevalsrc='0.4*sin(2*PI*60*t)*exp(-12*mod(t,0.5))+0.1*(random(0)-0.5)*exp(-30*mod(t+0.25,0.5))':d=16" "$OUT/Música/Ritmo.wav"
 ff -f lavfi -i "sine=f=523:d=12,volume=0.3" -c:a libopus "$OUT/Música/Tono puro.opus"
 
+# Datos de cámara y un HEIC para mostrar la lectura de EXIF y la conversión (si hay herramientas)
+if command -v exiftool >/dev/null; then
+  exiftool -q -overwrite_original -Make=Canon -Model="Canon EOS R6" -LensModel="RF24-70mm F2.8 L IS USM" \
+    -DateTimeOriginal="2019:03:12 14:22:01" -FNumber=2.8 -ExposureTime=0.004 -ISO=400 -FocalLength=35 "$OUT/Fractales/Mandelbrot 1.jpg"
+  exiftool -q -overwrite_original -Make=FUJIFILM -Model="X-T5" -LensModel="XF16-55mmF2.8 R LM WR" \
+    -DateTimeOriginal="2023:05:20 18:40:10" -FNumber=5.6 -ExposureTime=0.008 -ISO=160 -FocalLength=23 "$OUT/Fractales/Mandelbrot 2.jpg"
+fi
+if command -v heif-enc >/dev/null; then
+  heif-enc -q 75 "$OUT/Fractales/Mandelbrot 3.jpg" -o "$OUT/Fractales/Mandelbrot 3 (HEIC).heic" >/dev/null
+  command -v exiftool >/dev/null && exiftool -q -overwrite_original -Make=Apple -Model="iPhone 15 Pro" \
+    -DateTimeOriginal="2024:07:04 19:05:33" -FNumber=1.8 -ExposureTime=0.01 -ISO=80 "$OUT/Fractales/Mandelbrot 3 (HEIC).heic"
+fi
+
 node -e '
 const fs = require("fs"), path = require("path");
 const root = "public/demo";

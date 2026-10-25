@@ -50,7 +50,8 @@ try {
       for (let i = 0; i < nv; i++) { const s = vids[i % vids.length]; items.push({ ...s, url: s.url, name: 'Video ' + (i + 1) + '.mp4', dir }); }
       for (let i = 0; i < na; i++) { const s = auds[i % auds.length]; items.push({ ...s, url: s.url, name: 'Pista ' + (i + 1) + '.mp3', dir }); }
     }
-    window.__imuseumBuild({ rootName: 'Mis recuerdos', items });
+    window.__showcase = { rootName: 'Mis recuerdos', items };
+    window.__imuseumBuild(window.__showcase);
     while (!window.__imuseum) await new Promise((r) => setTimeout(r, 100));
     await new Promise((r) => setTimeout(r, 600));
     return window.__imuseum.museum.types;
@@ -129,6 +130,49 @@ try {
     await new Promise((r) => setTimeout(r, 1000));
     return true;`);
   await shot('12-directorio');
+
+  // visita guiada: empieza en la sala de doble altura y se captura delante de la primera obra
+  await evaluate(`
+    dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
+    const a = window.__imuseum, r = __room((r) => r.arch === 'mezzanine');
+    a.setSetting('tourSeconds', 8);
+    await __place(r, { lx: r.W / 2, lz: 3, dx: 0, dz: 1, wait: 800 });
+    a.setMode('paused');
+    dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyG' }));
+    await new Promise((res) => setTimeout(res, 6500));
+    return true;`);
+  await shot('14-visita-guiada');
+  await evaluate(`
+    dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
+    window.__imuseum.setSetting('tourSeconds', 5);
+    return true;`);
+
+  // ascensor: la misma muestra con 4 alas por piso → galería de varios pisos
+  await evaluate(`
+    window.__imuseum.setSetting('wingsPerFloor', 4);
+    window.__imuseum = null;
+    // más carpetas de primer nivel (una por año) para llenar varios pisos de la galería
+    const base = window.__showcase.items.filter((i) => i.type === 'image').slice(0, 10);
+    const years = [];
+    for (let y = 2012; y < 2026; y++) for (let d = 0; d < 4; d++) for (const it of base) years.push({ ...it, url: it.url, dir: y + '/Álbum ' + (d + 1) });
+    window.__imuseumBuild({ rootName: 'Mis recuerdos', items: years });
+    while (!window.__imuseum) await new Promise((r) => setTimeout(r, 50));
+    const a = window.__imuseum, m = a.museum;
+    a.setMode('play');
+    const stop = m.elevatorStop(m.floors[0]);
+    a.teleport(stop.x, stop.z - 0.6, 0, stop.y);
+    a.camera.rotation.x = 0.12;
+    await new Promise((r) => setTimeout(r, 1500));
+    a.teleport(stop.x, stop.z, stop.yaw, stop.y);
+    await new Promise((r) => setTimeout(r, 400));
+    dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyE' }));
+    await new Promise((r) => setTimeout(r, 800));
+    return m.floors.length;`);
+  await shot('15-ascensor');
+  await evaluate(`
+    dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
+    window.__imuseum.setSetting('wingsPerFloor', 16);
+    return true;`);
 
   // ajustes
   await evaluate(`

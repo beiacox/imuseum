@@ -417,7 +417,10 @@ export function wingSpec(w) {
 }
 
 /** Galería principal: alta, con columnata y lucernario, de la que salen las alas. */
-export function mainSpec(wings, zs, ze) {
+/** Cabina del ascensor del vestíbulo, detrás de la pared de entrada (coordenadas de mundo). */
+export const ELEVATOR = { x0: -1.5, x1: 1.5, depth: 3.2, doorW: 2.2, doorH: 3.0, h: 3.3 };
+
+export function mainSpec(wings, zs, ze, { elevator = false } = {}) {
   const mw = MAIN_W / 2, H = MAIN_H, hw = HALL_W / 2;
   const s = new Spec('main', MAIN_W, ze - zs, H);
   s.box(-mw, mw, -0.3, 0, zs, ze, 'hallFloor', { walk: true, ray: true });
@@ -442,7 +445,24 @@ export function mainSpec(wings, zs, ze) {
       s.column(cx, cz, 0, H, 0.32);
     }
   }
-  s.wall(-mw - T / 2, mw + T / 2, -0.3, H, zs - T, zs, 'hallWall');
+  if (elevator) {
+    // pared de entrada con la puerta del ascensor y la cabina detrás
+    const E = ELEVATOR, dw = E.doorW / 2, zc = zs - T - E.depth;
+    s.wall(-mw - T / 2, -dw, -0.3, H, zs - T, zs, 'hallWall');
+    s.wall(dw, mw + T / 2, -0.3, H, zs - T, zs, 'hallWall');
+    s.box(-dw, dw, E.doorH, H, zs - T, zs, 'hallWall', { ray: true });
+    s.box(-dw - 0.1, -dw, 0, E.doorH + 0.1, zs - T - 0.03, zs + 0.03, 'metal');
+    s.box(dw, dw + 0.1, 0, E.doorH + 0.1, zs - T - 0.03, zs + 0.03, 'metal');
+    s.box(-dw, dw, E.doorH, E.doorH + 0.1, zs - T - 0.03, zs + 0.03, 'metal');
+    s.box(E.x0, E.x1, -0.3, 0, zc, zs - T, 'stone', { walk: true, ray: true });
+    s.wall(E.x0 - T, E.x0, -0.3, E.h, zc - T, zs - T, 'metal');
+    s.wall(E.x1, E.x1 + T, -0.3, E.h, zc - T, zs - T, 'metal');
+    s.wall(E.x0 - T, E.x1 + T, -0.3, E.h, zc - T, zc, 'metal');
+    s.box(E.x0 - T, E.x1 + T, E.h, E.h + 0.15, zc - T, zs - T, 'metal', { ray: true });
+    s.light((E.x0 + E.x1) / 2, (E.x0 + E.x1) / 2, (zc + zs - T) / 2, (zc + zs - T) / 2, E.h - 0.01, 1);
+  } else {
+    s.wall(-mw - T / 2, mw + T / 2, -0.3, H, zs - T, zs, 'hallWall');
+  }
   s.wall(-mw - T / 2, mw + T / 2, -0.3, H, ze, ze + T, 'hallWall');
   return s;
 }

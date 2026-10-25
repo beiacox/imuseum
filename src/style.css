@@ -179,3 +179,64 @@ kbd {
   font: 600 12px/1.5 ui-monospace, monospace; white-space: pre;
 }
 #settingsForm, #dirList, .card { scrollbar-color: rgba(168, 137, 74, 0.55) transparent; scrollbar-width: thin; }
+
+/* Escaneo guardado y reconstrucción */
+#scanChip {
+  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); padding: 7px 14px;
+  border-radius: 999px; background: rgba(12, 11, 10, 0.8); border: 1px solid var(--line);
+  color: var(--gold); font-size: 13px; white-space: nowrap;
+}
+#scanChip.update { border-color: #d4b56c; box-shadow: 0 0 0 3px rgba(212, 181, 108, 0.15); }
+#rebuildBar {
+  display: flex; align-items: center; gap: 14px; justify-content: space-between; margin: 0 0 12px;
+  padding: 10px 12px; border-radius: 9px; background: rgba(212, 181, 108, 0.1); border: 1px solid var(--line);
+  font-size: 13px; color: var(--text);
+}
+#rebuildBar button { padding: 8px 14px; font-size: 13px; white-space: nowrap; }
+
+/* Actualizaciones */
+#updateBox {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px;
+  padding: 10px 12px; border-radius: 9px; border: 1px solid #d4b56c; background: rgba(212, 181, 108, 0.12); font-size: 13px;
+}
+#updateBox button { padding: 8px 14px; font-size: 13px; white-space: nowrap; }
+#versionLine a { color: var(--gold); cursor: pointer; text-decoration: underline; }
+
+/* Ascensor */
+.pickList { list-style: none; margin: 14px 0 0; padding: 0; max-height: 55vh; overflow: auto; }
+.pickList li {
+  display: flex; align-items: center; gap: 14px; padding: 11px 12px; border-radius: 9px; cursor: pointer;
+  border: 1px solid transparent;
+}
+.pickList li:hover, .pickList li.sel { background: rgba(232, 213, 166, 0.1); border-color: var(--line); }
+.pickList .num {
+  flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  border: 2px solid var(--line); color: var(--gold); font: 700 18px Georgia, serif;
+}
+.pickList li.here .num { background: #d4b56c; color: #1a140c; border-color: #d4b56c; }
+.pickList .t { font-weight: 600; }
+.pickList .p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+#ride { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(5, 5, 5, 0.9); animation: rideIn 0.35s ease; }
+@keyframes rideIn { from { opacity: 0; } }
+.rideBox { text-align: center; }
+.rideArrow { color: #ffd36b; font-size: 34px; animation: pulse 0.8s ease-in-out infinite; }
+.rideFloor { font: 600 120px/1 Georgia, serif; color: var(--gold); margin: 6px 0 10px; }
+.rideText { color: var(--muted); letter-spacing: 0.2em; text-transform: uppercase; font-size: 13px; }
+
+/* Visor: conversión y EXIF */
+#lbMedia[data-loading]::before { content: attr(data-loading); color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; font-size: 13px; }
+#lbMedia[data-loading] img { display: none; }
+#lbCaption .exif { color: var(--gold); opacity: 0.85; font-size: 13px; }
+
+/* Visita guiada */
+#tourBar {
+  position: absolute; left: 50%; top: 18px; transform: translateX(-50%); min-width: 420px; max-width: 80vw;
+  padding: 10px 16px; border-radius: 10px; background: rgba(12, 11, 10, 0.78); border: 1px solid var(--line); text-align: center;
+}
+#tourBar .tag { color: #1a140c; background: #d4b56c; border-radius: 4px; padding: 1px 7px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+#tourBar b { font-family: Georgia, serif; color: var(--gold); font-size: 17px; margin-left: 6px; }
+.tourMeta { color: var(--text); font-size: 13px; margin-top: 4px; }
+.tourKeys { color: var(--muted); font-size: 11px; margin-top: 4px; }
+#hud.touring #crosshair, #hud.touring #focus, #hud.touring #roomName { display: none; }
+#tourFade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 0.4s ease; }
+#tourFade.on { opacity: 1; }

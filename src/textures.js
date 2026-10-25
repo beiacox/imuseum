@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { rng, stripExt, extOf, formatSize, formatDate } from './util.js';
+import { conversionKind, decodeConverted } from './convert.js';
+import { exifSummary } from './exif.js';
 
 const FONT = 'Inter, "Segoe UI", system-ui, sans-serif';
 const SERIF = 'Georgia, "Times New Roman", serif';
@@ -179,8 +181,9 @@ export function makePlaqueTexture(item, extra = '') {
   g.fillText(fitText(g, stripExt(item.name), W - 48), 24, 26);
   g.fillStyle = '#6d6455';
   g.font = `400 23px ${FONT}`;
-  const meta = [extOf(item.name).toUpperCase(), formatSize(item.size), formatDate(item.mtime)]
-    .filter(Boolean).join(' · ');
+  const taken = item.exif?.date ? formatDate(item.exif.date.getTime()) : formatDate(item.mtime);
+  const meta = [extOf(item.name).toUpperCase(), formatSize(item.size), taken].filter(Boolean).join(' · ');
+  extra ||= exifSummary(item.exif);
   g.fillText(fitText(g, meta, W - 48), 24, 82);
   if (extra) {
     g.fillStyle = '#8a6d2e';
@@ -296,19 +299,24 @@ export async function loadImageTexture(item, max, saveThumb) {
     } catch { /* sin miniatura: se genera abajo */ }
   }
 
-  const blob = await fetchBlob(item.url);
-  let full;
-  try {
-    full = await createImageBitmap(blob);
-  } catch {
-    return loadViaImageElement(item.url, max); // SVG y similares
+  let full, size = item.size;
+  if (conversionKind(item.name)) {
+    full = await decodeConverted(item); // HEIC / RAW, en el worker
+  } else {
+    const blob = await fetchBlob(item.url);
+    size = blob.size;
+    try {
+      full = await createImageBitmap(blob);
+    } catch {
+      return loadViaImageElement(item.url, max); // SVG y similares
+    }
   }
   const [w, h] = fitSize(full.width, full.height, max);
   const small = await createImageBitmap(full, { resizeWidth: w, resizeHeight: h, resizeQuality: 'high' });
   const downscaled = w < full.width || h < full.height;
   full.close();
 
-  if (saveThumb && item.thumbURL && (downscaled || blob.size > 400_000)) {
+  if (saveThumb && item.thumbURL && (downscaled || size > 400_000)) {
     try {
       const c = new OffscreenCanvas(w, h);
       c.getContext('2d').drawImage(small, 0, 0);

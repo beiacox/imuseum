@@ -1,0 +1,74 @@
+# Compila los instaladores para Linux, Windows y macOS y los sube a un BORRADOR de release.
+# Se lanza al subir una etiqueta vX.Y.Z (o a mano desde la pestaña Actions).
+# La firma de código es opcional: si existen los secretos de abajo se firma; si no, se
+# compila sin firmar. Ver docs/FIRMA-Y-ACTUALIZACIONES.md.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  demo:
+    name: Multimedia de demostración
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Herramientas
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg libimage-exiftool-perl libheif-examples
+      - name: Generar public/demo
+        run: bash scripts/make-demo.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo
+          path: public/demo
+      # un solo borrador para las tres plataformas (evita que compitan al crearlo)
+      - name: Crear el borrador de release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 ||
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft \
+              --title "iMuseum ${GITHUB_REF_NAME#v}" --notes "Borrador generado por GitHub Actions."
+
+  build:
+    name: ${{ matrix.name }}
+    needs: demo
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Linux,   os: ubuntu-latest,  args: --linux }
+          - { name: Windows, os: windows-latest, args: --win }
+          - { name: macOS,   os: macos-latest,   args: --mac --arm64 --x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/download-artifact@v4
+        with:
+          name: demo
+          path: public/demo
+      - run: npm ci
+      - run: npx vite build
+      - name: Empaquetar y publicar en el borrador de release
+        run: npx electron-builder ${{ matrix.args }} --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Windows (Authenticode) y macOS (Developer ID): certificado .p12/.pfx en base64
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # macOS: notarización con Apple
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # sin certificado, no intentar buscar uno en el llavero del runner
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.CSC_LINK != '' }}

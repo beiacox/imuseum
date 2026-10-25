@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { WALL_T, DOOR_H, OPEN_H, STEP_UP, BUILD_BUDGET_MS, LOAD_CONCURRENCY } from './config.js';
 import { settings, distances } from './settings.js';
-import { layoutMuseum, apply, rectToWorld, yawToward } from './layout.js';
-import { ARCHETYPES, wingSpec, mainSpec } from './architecture.js';
+import { layoutMuseum, apply, rectToWorld, yawToward, GALLERY_FLOOR_H } from './layout.js';
+import { ARCHETYPES, wingSpec, mainSpec, ELEVATOR } from './architecture.js';
 import { MeshBuilder } from './meshbuilder.js';
 import { ImageExhibit, VideoExhibit, AudioExhibit } from './exhibits.js';
 import {
@@ -16,13 +16,19 @@ const unitCylinder = new THREE.CylinderGeometry(1, 1, 1, 20);
 // metros que abarca cada repetición de textura, por material
 const TEX_SCALE = { floor: 2.4, hallFloor: 2, stone: 2.2, wall: 3, hallWall: 3, panel: 3, ceiling: 4 };
 
+/**
+ * Distancia del visitante a un trozo del museo. La separación vertical pesa cuatro veces más:
+ * las salas de otro piso de la galería están justo encima, pero detrás de forjados.
+ */
 function distToRect(p, r) {
   const dx = Math.max(r.minX - p.x, 0, p.x - r.maxX);
   const dz = Math.max(r.minZ - p.z, 0, p.z - r.maxZ);
-  return Math.hypot(dx, dz);
+  const dy = r.minY === undefined ? 0 : Math.max(r.minY - p.y, 0, p.y - r.maxY);
+  return Math.hypot(dx, dz, dy * 4);
 }
 
-const inRect = (p, r) => p.x > r.minX && p.x < r.maxX && p.z > r.minZ && p.z < r.maxZ;
+const inRect = (p, r) => p.x > r.minX && p.x < r.maxX && p.z > r.minZ && p.z < r.maxZ
+  && (r.minY === undefined || (p.y > r.minY && p.y < r.maxY));
 
 function boxToWorld(t, b) {
   const r = rectToWorld(t, b.x0, b.x1, b.z0, b.z1);
@@ -147,12 +153,21 @@ export class Museum {
     this.applyAmbient();
 
     const lay = layoutMuseum(collections, rootName);
-    this.main = { minX: -4.5, maxX: 4.5, minZ: lay.mainStart, maxZ: lay.mainEnd };
+    this.floors = lay.floors.map((f) => ({
+      index: f.index,
+      y: f.y,
+      mainStart: f.mainStart,
+      mainEnd: f.mainEnd,
+      bounds: { minX: -4.5, maxX: 4.5, minZ: f.mainStart, maxZ: f.mainEnd, minY: f.y - 3, maxY: f.y + 9 },
+      wings: [],
+    }));
+    this.main = this.floors[0].bounds;
 
     const wingMap = new Map();
     this.wings = lay.wings.map((w) => {
       const d = this.prepareWing(w);
       wingMap.set(w, d);
+      this.floors[w.floor].wings.push(d);
       return d;
     });
     this.rooms = lay.rooms.map((r) => {
@@ -170,8 +185,37 @@ export class Museum {
     this.types = {};
     for (const r of this.rooms) this.types[r.typeLabel] = (this.types[r.typeLabel] ?? 0) + 1;
 
-    this.buildMain(lay);
-    this.spawn = { x: 0, y: 0, z: lay.mainStart + 3, yaw: Math.PI };
+    for (const f of this.floors) {
+      f.counts = { image: 0, video: 0, audio: 0 };
+      f.roomCount = 0;
+      for (const w of f.wings) {
+        f.roomCount += w.rooms.length;
+        for (const k in f.counts) f.counts[k] += w.counts[k];
+      }
+      f.title = f.wings.length ? (f.wings.length === 1 ? f.wings[0].title : `${f.wings[0].title} … ${f.wings.at(-1).title}`) : '';
+    }
+    this.hasElevator = this.floors.length > 1;
+    for (const f of this.floors) this.buildMain(f);
+    this.spawn = { x: 0, y: 0, z: this.floors[0].mainStart + 3, yaw: Math.PI };
+  }
+
+  /** Piso de la galería en el que están los pies. */
+  floorAt(feet) {
+    const i = Math.round(feet / GALLERY_FLOOR_H);
+    return this.floors[Math.min(this.floors.length - 1, Math.max(0, i))];
+  }
+
+  /** ¿Está el visitante dentro de la cabina del ascensor? */
+  inElevator(p, feet) {
+    if (!this.hasElevator) return false;
+    const f = this.floorAt(feet);
+    const z1 = f.mainStart - WALL_T, z0 = z1 - ELEVATOR.depth;
+    return p.x > ELEVATOR.x0 && p.x < ELEVATOR.x1 && p.z > z0 && p.z < z1 + 0.3 && Math.abs(feet - f.y) < 1;
+  }
+
+  /** Punto de llegada del ascensor en un piso (dentro de la cabina, mirando a la galería). */
+  elevatorStop(f) {
+    return { x: 0, y: f.y, z: f.mainStart - WALL_T - ELEVATOR.depth / 2, yaw: Math.PI };
   }
 
   // ------------------------------------------------------------------ física (datos)
@@ -216,8 +260,8 @@ export class Museum {
       t: w.t,
       layout: w,
       rooms: [],
-      bounds: rectToWorld(w.t, 0, w.length, -3.5, 3.5),
-      entry: { x: ex, y: 0, z: ez, yaw: yawToward(w.t, 1, 0) },
+      bounds: { ...rectToWorld(w.t, 0, w.length, -3.5, 3.5), minY: w.t.py - 4, maxY: w.t.py + 8 },
+      entry: { x: ex, y: w.t.py, z: ez, yaw: yawToward(w.t, 1, 0) },
       built: false,
       walls: [],
     };
@@ -247,7 +291,11 @@ export class Museum {
       placed: r.placed,
       pedestals: r.pedestals,
       color: `hsl(${Math.round(hue * 360)} 45% 62%)`,
-      bounds: rectToWorld(t, 0, W, 0, D),
+      bounds: {
+        ...rectToWorld(t, 0, W, 0, D),
+        minY: t.py + Math.min(0, ...spec.levels.map((l) => l.y)) - 0.6,
+        maxY: t.py + spec.H + 0.5,
+      },
       door: { x: dx, z: dz },
       entry: { x: ex, y: t.py + spec.entry.y, z: ez, yaw: yawToward(t, 0, 1) },
       built: false,
@@ -340,23 +388,39 @@ export class Museum {
   }
 
   /** Galería principal: siempre construida (une todas las alas). */
-  buildMain(lay) {
-    const { mainStart: zs, mainEnd: ze } = lay;
-    const spec = mainSpec(this.wings.map((w) => ({ side: w.side, z: w.t.pz })), zs, ze);
-    this.registerPhysics(spec, { px: 0, py: 0, pz: 0, flip: false });
-    const g = new THREE.Group();
+  /** Galería principal de un piso: siempre construida (une todas las alas de ese piso). */
+  buildMain(floor) {
+    const { mainStart: zs, mainEnd: ze, y } = floor;
+    const spec = mainSpec(floor.wings.map((w) => ({ side: w.side, z: w.t.pz })), zs, ze, { elevator: this.hasElevator });
+    const t = { px: 0, py: y, pz: 0, flip: false };
+    this.registerPhysics(spec, t);
+    const g = this.groupFor(t);
     this.root.add(g);
-    this.mainWalls = this.buildSpecMeshes(spec, g, this.mainRes, (k) => this.mats[k] ?? this.mats.hallWall);
+    this.mainWalls.push(...this.buildSpecMeshes(spec, g, this.mainRes, (k) => this.mats[k] ?? this.mats.hallWall));
 
     const nW = this.wings.length, nR = this.rooms.length;
     const types = Object.entries(this.types).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${k.toLowerCase()}`);
-    this.addSign(g, makeEntranceTexture(this.rootName, [
-      `${plural(nW, 'ala', 'alas')} · ${plural(nR, 'sala', 'salas')} · ${countsLabel(this.totals)}`,
-      types.slice(0, 3).join(' · '),
-      'Tab: directorio · M: mapa · E: interactuar',
-    ]), 6, 3, 0, 3, zs + 0.02, 0, this.mainRes);
-    this.addSign(g, makeEntranceTexture('Fin de la galería', ['Pulsa Tab para ir a cualquier sala']),
+    const many = this.floors.length > 1;
+    const lines = many
+      ? [
+        `Piso ${floor.index} de ${this.floors.length - 1} · ${plural(floor.wings.length, 'ala', 'alas')} · ${plural(floor.roomCount, 'sala', 'salas')}`,
+        floor.title,
+        'Ascensor detrás de este cartel · Tab: directorio · M: mapa',
+      ]
+      : [
+        `${plural(nW, 'ala', 'alas')} · ${plural(nR, 'sala', 'salas')} · ${countsLabel(this.totals)}`,
+        types.slice(0, 3).join(' · '),
+        'Tab: directorio · M: mapa · E: interactuar',
+      ];
+    // con ascensor, el cartel sube para dejar sitio a la puerta
+    this.addSign(g, makeEntranceTexture(this.rootName, lines), many ? 5.4 : 6, many ? 2.7 : 3, 0, many ? 4.9 : 3,
+      zs + 0.02, 0, this.mainRes);
+    this.addSign(g, makeEntranceTexture('Fin de la galería', [many ? 'Vuelve al vestíbulo para el ascensor · Tab: directorio' : 'Pulsa Tab para ir a cualquier sala']),
       4, 2, 0, 3, ze - 0.02, Math.PI, this.mainRes);
+    if (many) {
+      this.addSign(g, makeSignTexture('Ascensor', 'Pulsa E para elegir piso'), 2.2, 0.55, 0,
+        ELEVATOR.h - 0.55, zs - WALL_T - ELEVATOR.depth + 0.02, 0, this.mainRes);
+    }
   }
 
   buildWing(w) {
@@ -396,6 +460,7 @@ export class Museum {
       ex.group.rotation.y = p.rotY;
       g.add(ex.group);
       room.exhibits.push(ex);
+      if (ex.kind === 'video') ex.loadPoster();
     }
     room.pedestals.forEach((p, i) => {
       const ex = new AudioExhibit(room.col.audio[i], room);

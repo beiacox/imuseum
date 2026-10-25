@@ -4,6 +4,7 @@ import {
 } from './config.js';
 import { ARCHETYPES } from './architecture.js';
 import { hashString, rng } from './util.js';
+import { settings } from './settings.js';
 
 /*
  * Jerarquía espacial:
@@ -105,8 +106,20 @@ function layoutRoom(col) {
   if (need <= 40) options = audio ? ['classic', 'sunken', 'classic', 'sunken'] : ['classic', 'sunken', 'panels', 'classic', 'sunken'];
   else if (need <= 95) options = audio ? ['mezzanine', 'sunken', 'mezzanine', 'tower2'] : ['mezzanine', 'panels', 'sunken', 'mezzanine', 'tower2'];
   else options = ['tower3', 'mezzanine', 'tower2', 'tower3'];
+  // tipos desactivados en Ajustes → Arquitectura (la clásica siempre está disponible)
+  const enabled = {
+    classic: true,
+    sunken: settings.roomSunken,
+    panels: settings.roomPanels,
+    mezzanine: settings.roomMezzanine,
+    tower2: settings.roomTowers,
+    tower3: settings.roomTowers,
+  };
+  options = options.filter((o) => enabled[o]);
+  if (!options.length) options = ['classic'];
   const start = hashString(col.path + col.title) % options.length;
-  const order = [...options.slice(start), ...options.slice(0, start), 'classic', 'tower3'];
+  const order = [...options.slice(start), ...options.slice(0, start), 'classic'];
+  if (enabled.tower3) order.push('tower3');
   for (const name of order) {
     const r = tryArchetype(name, col);
     if (r) return { col, ...r };
@@ -127,7 +140,7 @@ function layoutWing(spec, seed) {
   let cursor = WING_START, maxN = 0, maxS = 0, level = 0, segStart = 0;
 
   for (let i = 0; i < rooms.length; i += 2) {
-    if (i > 0 && rnd() < 0.5) {
+    if (i > 0 && rnd() < settings.hallSlopes / 100) {
       let next = level + (rnd() < 0.5 ? -1 : 1) * HALL_LEVEL_STEP;
       if (Math.abs(next) > 2 * HALL_LEVEL_STEP + 0.01) next = level - Math.sign(level) * HALL_LEVEL_STEP;
       const run = Math.round(Math.abs(next - level) / 0.15) * 0.32 + 0.4;
@@ -205,18 +218,32 @@ function groupIntoWings(collections, rootName) {
 
 // ---------------------------------------------------------------- museo
 
+/** Separación vertical entre pisos de la galería (cabe una torre de 3 pisos sobre un pasillo elevado). */
+export const GALLERY_FLOOR_H = 22;
+
+/**
+ * Las alas se reparten en pisos de la galería principal (Ajustes → Arquitectura → Alas por
+ * piso). Todos los pisos comparten el vestíbulo, donde está el ascensor.
+ */
 export function layoutMuseum(collections, rootName) {
   const wings = groupIntoWings(collections, rootName).map((w, i) => layoutWing(w, hashString(w.title) + i));
-  let cursor = 0, lastZ = 0;
-  for (let i = 0; i < wings.length; i += 2) {
-    const e = wings[i], w = wings[i + 1];
-    const before = Math.max(e.depthN, w ? w.depthS : 0);
-    const after = Math.max(e.depthS, w ? w.depthN : 0);
-    const z = cursor + before;
-    Object.assign(e, { side: 'E', z, t: tf(MAIN_W / 2, 0, z, false) });
-    if (w) Object.assign(w, { side: 'O', z, t: tf(-MAIN_W / 2, 0, z, true) });
-    cursor = z + after + WING_GAP;
-    lastZ = z;
+  const perFloor = Math.max(2, settings.wingsPerFloor);
+  const floors = [];
+  for (let f = 0; f === 0 || f * perFloor < wings.length; f++) {
+    const fw = wings.slice(f * perFloor, (f + 1) * perFloor);
+    const py = f * GALLERY_FLOOR_H;
+    let cursor = 0, lastZ = 0;
+    for (let i = 0; i < fw.length; i += 2) {
+      const e = fw[i], w = fw[i + 1];
+      const before = Math.max(e.depthN, w ? w.depthS : 0);
+      const after = Math.max(e.depthS, w ? w.depthN : 0);
+      const z = cursor + before;
+      Object.assign(e, { side: 'E', z, floor: f, t: tf(MAIN_W / 2, py, z, false) });
+      if (w) Object.assign(w, { side: 'O', z, floor: f, t: tf(-MAIN_W / 2, py, z, true) });
+      cursor = z + after + WING_GAP;
+      lastZ = z;
+    }
+    floors.push({ index: f, y: py, wings: fw, mainStart: -MAIN_ENTRY, mainEnd: lastZ + HALL_W / 2 + 5 });
   }
   const rooms = [];
   for (const wing of wings) {
@@ -227,5 +254,5 @@ export function layoutMuseum(collections, rootName) {
       rooms.push(r);
     }
   }
-  return { wings, rooms, mainStart: -MAIN_ENTRY, mainEnd: lastZ + HALL_W / 2 + 5 };
+  return { wings, rooms, floors };
 }

@@ -6,8 +6,7 @@
 
 *Turn any folder of photos, videos and music into a walkable 3D museum.*
 
-[![Descargar AppImage](https://img.shields.io/badge/Descargar-AppImage-c9a24a?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/beiacox/imuseum/releases/latest/download/iMuseum-0.2.0.AppImage)
-[![Descargar .deb](https://img.shields.io/badge/Descargar-.deb-8a6d2e?style=for-the-badge&logo=debian&logoColor=white)](https://github.com/beiacox/imuseum/releases/latest/download/imuseum_0.2.0_amd64.deb)
+[![Descargar](https://img.shields.io/badge/Descargar-última%20versión-c9a24a?style=for-the-badge&logo=github&logoColor=white)](https://github.com/beiacox/imuseum/releases/latest)
 
 ![Electron](https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white)
 ![Three.js](https://img.shields.io/badge/Three.js-r186-000000?logo=threedotjs&logoColor=white)
@@ -35,6 +34,7 @@ museo que tienes cerca.
 - [Uso y controles](#uso-y-controles)
 - [Ajustes](#ajustes)
 - [Rendimiento con colecciones grandes](#rendimiento-con-colecciones-grandes)
+- [Escaneos guardados y actualizaciones](#escaneos-guardados-y-actualizaciones)
 - [Desarrollo](#desarrollo)
 - [Estructura del código](#estructura-del-código)
 - [Hoja de ruta](#hoja-de-ruta)
@@ -51,7 +51,8 @@ Todas las capturas son de la app de escritorio real (se generan con `scripts/scr
 | ![Videos](docs/screenshots/07-videos.jpg) **Videos** — la luz de cada pantalla sigue al fotograma que muestra. | ![Gramófonos](docs/screenshots/08-gramofonos.jpg) **Gramófonos** — sonido 3D, vinilo girando y luz que late con la música. |
 | ![Pasillo](docs/screenshots/09-pasillo.jpg) **Pasillos con desniveles** — a oscuras, con carteles retroiluminados. | ![Galería principal](docs/screenshots/10-galeria-principal.jpg) **Galería principal** — columnata y lucernario; de ella salen las alas. |
 | ![Visor](docs/screenshots/11-visor.jpg) **Visor** — cualquier obra a pantalla completa, con ← → para recorrer la sala. | ![Directorio](docs/screenshots/12-directorio.jpg) **Directorio (Tab)** — búsqueda y teletransporte a cualquier ala o sala. |
-| ![Inicio](docs/screenshots/01-inicio.jpg) **Inicio** — elegir carpeta, carpetas recientes y caché de miniaturas. | ![Ajustes](docs/screenshots/13-ajustes.jpg) **Ajustes** — rendimiento, iluminación y controles, guardados al momento. |
+| ![Visita guiada](docs/screenshots/14-visita-guiada.jpg) **Visita guiada** — la cámara recorre las salas y se detiene ante cada obra. | ![Ascensor](docs/screenshots/15-ascensor.jpg) **Ascensor** — con muchas alas, la galería se apila en pisos. |
+| ![Inicio](docs/screenshots/01-inicio.jpg) **Inicio** — carpetas recientes, cachés, versión y actualizaciones. | ![Ajustes](docs/screenshots/13-ajustes.jpg) **Ajustes** — rendimiento, iluminación, arquitectura, visita guiada, mando… |
 
 ## Características
 
@@ -60,11 +61,16 @@ Todas las capturas son de la app de escritorio real (se generan con `scripts/scr
 | Archivo | En el museo |
 |---|---|
 | Imágenes — jpg, png, gif, webp, avif, bmp, svg, ico | Cuadro enmarcado con passe-partout y cartela (nombre, tipo, tamaño, fecha) |
+| Fotos HEIC/HEIF (iPhone) y RAW — cr2, cr3, nef, arw, dng, raf, orf, rw2, pef… | Igual que las demás: el HEIC se decodifica con libheif y el RAW usa la vista previa que incrusta la cámara² |
 | Videos — mp4, m4v, webm, mov, ogv, mkv¹ | Pantalla que se reproduce sola (en silencio) al acercarte; **E** activa el sonido 3D, **F** la abre en grande |
 | Audios — mp3, wav, ogg, m4a, aac, flac, opus | Gramófono sobre pedestal con sonido posicional, disco girando y visualizador |
 
 ¹ Según los códecs de Chromium: HEVC/H.265 y algunos mkv pueden no reproducirse; se muestra
 «Formato no compatible» en la pantalla.
+
+² La vista previa JPEG de un RAW suele ser de resolución completa o casi; no es un revelado
+del archivo RAW. Las cartelas muestran también los **datos EXIF**: cámara, objetivo, fecha de
+captura, diafragma, velocidad, ISO y focal.
 
 ### Arquitectura variada
 
@@ -83,6 +89,16 @@ Las salas se organizan en una **galería principal** (7 m de alto, columnata y l
 que salen **alas** —una por carpeta de primer nivel— cuyos pasillos suben y bajan con
 escaleras de ancho completo. Se camina con física real: suelos, rampas, escaleras, gravedad y
 colisiones que tienen en cuenta la altura.
+
+### Museos enormes
+
+- **Galería de varios pisos**: cuando hay más alas que las indicadas en Ajustes (16 por
+  defecto), la galería principal se apila en pisos unidos por un **ascensor** en el
+  vestíbulo (E dentro de la cabina, o las teclas 0–9).
+- **Visita guiada** (G): la cámara recorre las salas en orden, se detiene ante cada obra el
+  tiempo elegido y reproduce videos y audios al pasar. Espacio pausa, ← → salta, Esc sale.
+- **Pantallas con fotograma**: la primera vez que se ve un video se guarda un fotograma, y
+  las pantallas lejanas lo muestran (y emiten su color) en lugar de quedarse en negro.
 
 ### Las obras son la luz
 
@@ -136,11 +152,31 @@ colecciones grandes, usa la app de escritorio.
 | **← →** (en el visor) | Obra anterior / siguiente de la sala |
 | **Tab** | Directorio de alas y salas, con búsqueda y teletransporte |
 | **M** | Mostrar / ocultar minimapa |
+| **G** | Visita guiada (Espacio: pausa · ← →: obra anterior/siguiente · Esc: salir) |
+| **E** / **0–9** (en el ascensor) | Elegir piso de la galería |
+| **U** | Actualizar el museo cuando la carpeta ha cambiado |
 | **F11** | Pantalla completa |
 | **Esc** | Pausa |
 
 El indicador superior muestra dónde estás, incluido el piso: «Planta baja», «Entreplanta»,
 «Piso 2», «Nivel inferior»…
+
+### Mando
+
+Con un mando de Xbox o PlayStation conectado no hace falta el ratón: basta con pulsar A.
+
+| Botón | Acción |
+|---|---|
+| Stick izquierdo / derecho | Caminar (proporcional) / mirar |
+| RT o clic del stick izquierdo | Correr |
+| A | Interactuar · entrar · elegir en listas |
+| B | Volver / pausa |
+| X | Visita guiada |
+| Y | Directorio de salas |
+| RB | Ver el video en grande · siguiente obra en el visor y en la visita |
+| LB | Obra anterior en el visor y en la visita |
+| Cruceta | Moverse por las listas |
+| Back / Start | Minimapa / pausa |
 
 **Historial**: en la pantalla de inicio, **✕** quita una carpeta de la lista y **Borrar
 historial** (dos clics) la vacía. Ninguna de las dos acciones borra nada del disco.
@@ -163,8 +199,20 @@ se guardan en la carpeta de datos de la app.
 | | Resolución de los cuadros | 1024 px | 512 / 1024 / 2048 px |
 | | Distancia de visión (niebla) | 60 m | 40–150 m |
 | | Calidad de imagen | Alta | Muy baja – Máxima |
+| Arquitectura¹ | Desniveles en los pasillos | 50 % | 0–100 % |
+| | Salas hundidas, de paneles, de doble altura, torres | sí | activar / desactivar cada tipo |
+| | Alas por piso de la galería | 16 | 4–60 |
+| Visita guiada | Segundos delante de cada obra | 5 s | 2–20 s |
+| | Reproducir videos y audios durante la visita | sí | sí / no |
 | Controles | Sensibilidad del ratón · velocidad · campo de visión | 1× · 3,6 m/s · 70° | |
+| | Sensibilidad del mando · invertir eje vertical | 1× · no | |
 | Sonido e interfaz | Volumen · minimapa · contador de FPS | 80 % · sí · no | |
+| Escaneo y actualizaciones | Recordar el escaneo de cada carpeta | sí | sí / no |
+| | Leer datos EXIF de las fotos | sí | sí / no |
+| | Buscar actualizaciones al iniciar | sí | sí / no |
+
+¹ Los ajustes de arquitectura se aplican con el botón **Reconstruir museo**, que aparece en
+Ajustes al cambiarlos; al reconstruir vuelves a la sala en la que estabas.
 
 El **contador de FPS** muestra también cuántos videos se reproducen y cuántas salas hay en
 memoria: úsalo para encontrar el punto justo para tu tarjeta gráfica. Si va lento, baja
@@ -184,9 +232,25 @@ Linux). La pantalla de inicio muestra cuánto ocupa y permite vaciarla.
 
 Más detalles técnicos en [docs/ARQUITECTURA.md](docs/ARQUITECTURA.md).
 
+## Escaneos guardados y actualizaciones
+
+- **Reabrir al instante**: el resultado del escaneo de cada carpeta se guarda comprimido en
+  la carpeta de datos de la app. Al reabrirla, el museo aparece enseguida y en segundo plano
+  se buscan cambios releyendo **solo las carpetas cuya fecha de modificación cambió**. Si hay
+  obras nuevas, borradas o modificadas aparece un aviso: **U** actualiza el museo sin
+  perder la sala en la que estás. Quitar una carpeta del historial olvida también su escaneo.
+- **Actualizaciones automáticas**: la app comprueba la última versión publicada en GitHub. En
+  AppImage, Windows y macOS se descarga e instala desde la propia app; con el .deb avisa y
+  abre la página de descargas.
+- **Publicar versiones y firmar**: subir una etiqueta `vX.Y.Z` lanza un flujo de GitHub Actions
+  que compila Linux, Windows y macOS y deja un borrador de release. La firma de código se
+  activa al configurar los certificados como secretos del repositorio. Ver
+  [docs/FIRMA-Y-ACTUALIZACIONES.md](docs/FIRMA-Y-ACTUALIZACIONES.md).
+
 ## Desarrollo
 
-Requisitos: **Node.js 20+** y, para generar la demo, **ffmpeg**.
+Requisitos: **Node.js 20+** y, para generar la demo, **ffmpeg** (con **exiftool** y
+**heif-enc** la demo incluye además fotos con EXIF y un HEIC).
 
 ```bash
 npm install
@@ -204,6 +268,7 @@ npm run app         # app de escritorio con recarga en caliente (Vite + Electron
 | `npm run app:prod` | App de escritorio con el build de producción |
 | `npm run dev` | Versión web en http://localhost:5173 |
 | `npm run demo` | Regenera la multimedia de ejemplo de `public/demo` |
+| `bash scripts/make-fixtures.sh carpeta` | Crea archivos de prueba HEIC, RAW y JPEG con EXIF |
 | `npm run dist:linux` | Build + AppImage y .deb en `release/` |
 | `npm run dist:win` / `dist:mac` | Instaladores para Windows / macOS (sin probar) |
 | `npm run test:e2e` | Prueba de extremo a extremo con la app real |
@@ -211,10 +276,12 @@ npm run app         # app de escritorio con recarga en caliente (Vite + Electron
 
 ### Pruebas
 
-`scripts/selftest.mjs` abre la app de escritorio, la controla por el protocolo de DevTools y
-comprueba: escaneo de una carpeta del disco, streaming por rangos (respuesta 206), que todas
-las salas cargan sus obras, la caché de miniaturas, que los ajustes persisten tras reiniciar y
-la gestión del historial.
+`scripts/selftest.mjs` copia la demo (y archivos HEIC/RAW de prueba) a una carpeta temporal,
+abre la app de escritorio real, la controla por el protocolo de DevTools y hace 19
+comprobaciones: escaneo, streaming por rangos (206), carga de todas las obras, fotogramas de
+video, EXIF, HEIC y RAW, cachés, galería en pisos con ascensor, visita guiada, mando,
+actualizaciones, reapertura desde el escaneo guardado, detección de cambios en la carpeta,
+persistencia de ajustes e historial.
 
 ```bash
 npm run test:e2e
@@ -243,6 +310,11 @@ src/
   museum.js        construcción por cercanía, colisiones y suelos, carga de texturas
   exhibits.js      cuadro, pantalla de video, gramófono
   lighting.js      luces dinámicas asignadas a las obras más relevantes
+  tour.js          visita guiada
+  gamepad.js       mando (Gamepad API)
+  exif.js          lector EXIF (JPEG, TIFF/RAW, HEIC, CR3)
+  convert.js       HEIC/RAW: decodificación en un worker, URLs para el visor, EXIF
+  convert.worker.js  libheif y extracción de la vista previa JPEG de los RAW
   player.js        primera persona: suelo, escaleras, gravedad, colisiones
   settings.js      ajustes con su pantalla y persistencia
   textures.js      texturas procedurales, cartelas, color de las obras, miniaturas
@@ -252,13 +324,24 @@ scripts/           demo (ffmpeg), desarrollo, pruebas y capturas
 
 ## Hoja de ruta
 
-- Guardar el resultado del escaneo para reabrir carpetas enormes al instante y detectar cambios.
-- Ascensores o pisos en la galería principal: con 100.000+ obras mide varios kilómetros
-  (hoy se navega con Tab).
-- Miniatura (fotograma) para las pantallas lejanas que aún no se reproducen.
-- Lectura de EXIF (fecha, cámara) en las cartelas; HEIC/RAW mediante conversión.
-- Ajustes de arquitectura (frecuencia de desniveles, activar/desactivar tipos de sala).
-- Mando (gamepad), modo «visita guiada», firma de código y actualizaciones automáticas.
+Ya implementado en la 0.3.0: escaneos guardados con detección de cambios, galería de varios
+pisos con ascensor, fotogramas en las pantallas lejanas, EXIF/HEIC/RAW, ajustes de
+arquitectura, mando, visita guiada, actualizaciones automáticas y flujo de publicación con
+firma opcional. Ideas para después:
+
+- Revelado real de RAW (no solo la vista previa) con LibRaw compilado a WebAssembly.
+- Realidad virtual (WebXR) para recorrer el museo con visor.
+- Búsqueda y filtros por fecha de captura, cámara o lugar (EXIF/GPS).
+- Compilar y probar las versiones de Windows y macOS, con certificados de firma.
+
+## Componentes de terceros
+
+| Componente | Licencia | Uso |
+|---|---|---|
+| [Three.js](https://threejs.org) | MIT | Motor 3D |
+| [Electron](https://www.electronjs.org) | MIT | App de escritorio |
+| [electron-updater](https://www.electron.build/auto-update) | MIT | Actualizaciones automáticas |
+| [libheif-js](https://github.com/catdad-experiments/libheif-js) ([libheif](https://github.com/strukturag/libheif)) | LGPL-3.0 | Decodificar HEIC. Se distribuye como archivo independiente (`assets/libheif-bundle-*.js`), cargado solo cuando aparece una foto HEIC, y puede sustituirse por otra versión |
 
 ## Licencia
 

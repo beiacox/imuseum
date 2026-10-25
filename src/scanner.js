@@ -24,6 +24,7 @@ function webItem(type, name, dir, file) {
     size: file.size,
     mtime: file.lastModified,
     get url() { return (url ??= URL.createObjectURL(file)); },
+    readRange: (start, end) => file.slice(start, end).arrayBuffer(),
   };
 }
 
@@ -37,11 +38,22 @@ function nativeItem(raw) {
 
 // ---------------------------------------------------------------- escritorio
 
-export async function scanNative(root, onProgress) {
+export async function scanNative(root, onProgress, { useCache = true } = {}) {
   const off = native.onScanProgress(onProgress);
   try {
-    const res = await native.scan(root);
-    return { rootName: res.rootName, root: res.root, items: res.items.map(nativeItem) };
+    const res = await native.scan(root, { useCache });
+    return { ...res, items: res.items.map(nativeItem) };
+  } finally {
+    off();
+  }
+}
+
+/** Busca cambios respecto al escaneo guardado (en segundo plano). */
+export async function rescanNative(root, onProgress) {
+  const off = native.onRescanProgress(onProgress);
+  try {
+    const res = await native.rescan(root);
+    return { ...res, items: res.items.map(nativeItem) };
   } finally {
     off();
   }

@@ -5,6 +5,7 @@ import {
   makePlaqueTexture, makeMessageTexture, getHaloTexture, disposeTexture, loadImageTexture, sampleColor, PLAQUE_ASPECT,
 } from './textures.js';
 import { hashString, formatDuration, stripExt } from './util.js';
+import { readExif } from './convert.js';
 
 const unitPlane = new THREE.PlaneGeometry(1, 1);
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
@@ -122,6 +123,8 @@ class Exhibit {
   /** Libera todo al destruir la sala. */
   dispose() {
     if (this.active) this.deactivate();
+    this.disposed = true;
+    disposeTexture(this.poster);
     this.plaque.material.dispose();
     for (const m of this.ownMaterials ?? []) m.dispose();
   }
@@ -172,8 +175,13 @@ export class ImageExhibit extends Exhibit {
 
   activate(ctx) {
     this.active = true;
+    this.ctx = ctx;
     this.showPlaque();
     if (this.state === 'idle') ctx.enqueue(this);
+    // cámara, objetivo y fecha de captura en la cartela (solo lee la cabecera del archivo)
+    if (settings.readExif && this.item.exif === undefined) {
+      readExif(this.item).then((x) => { if (x && this.active) this.showPlaque(); });
+    }
   }
 
   async load(ctx) {
@@ -235,10 +243,67 @@ export class VideoExhibit extends Exhibit {
     this.target = new THREE.Color();
     this.targetLevel = 0;
     this.sampleTimer = 0;
+    this.poster = null;        // fotograma de muestra para cuando la pantalla aún no se reproduce
+    this.posterColor = new THREE.Color();
+    this.posterLevel = 0;
     this.layout();
   }
 
   get targets() { return [this.screen, this.bezel]; }
+
+  /**
+   * Carga el fotograma guardado (caché de miniaturas, o en memoria en la versión web) para
+   * que las pantallas lejanas no se vean vacías. Se llama al construir la sala.
+   */
+  async loadPoster() {
+    if (this.poster) return;
+    let tex = null;
+    if (this.item.posterCanvas) {
+      tex = new THREE.CanvasTexture(this.item.posterCanvas);
+      this.posterLevel = Math.max(0, sampleColor(this.item.posterCanvas, this.posterColor));
+    } else if (this.item.thumbURL) {
+      try {
+        const res = await fetch(`${this.item.thumbURL}?s=400`);
+        if (!res.ok) return;
+        const bmp = await createImageBitmap(await res.blob());
+        this.posterLevel = Math.max(0, sampleColor(bmp, this.posterColor));
+        if (!this.aspect || !this.duration) { this.aspect = bmp.width / bmp.height; this.layout(); }
+        tex = new THREE.Texture(await createImageBitmap(bmp, { imageOrientation: 'flipY' }));
+        tex.flipY = false;
+        bmp.close();
+      } catch { return; }
+    }
+    if (!tex || this.disposed) { disposeTexture(tex); return; }
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    this.poster = tex;
+    if (!this.active) this.showPoster();
+  }
+
+  showPoster() {
+    if (!this.poster) return;
+    this.setScreen(this.poster);
+    this.setGlow(this.posterColor, this.posterLevel * 0.35);
+  }
+
+  /** Guarda un fotograma real (tras el primer salto) como miniatura de la pantalla. */
+  capturePoster(v, ctx) {
+    if (this.poster || this.item.posterSaved || !v.videoWidth) return;
+    const w = 400, h = Math.max(1, Math.round((400 * v.videoHeight) / v.videoWidth));
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    try { c.getContext('2d').drawImage(v, 0, 0, w, h); } catch { return; }
+    this.item.posterSaved = true;
+    if (ctx?.saveThumb && this.item.thumbURL) {
+      c.toBlob((b) => b?.arrayBuffer().then((buf) => ctx.saveThumb(this.item.id, buf, 400)), 'image/webp', 0.8);
+    } else {
+      this.item.posterCanvas = c; // versión web: sin caché en disco, se queda en memoria
+    }
+    this.posterLevel = Math.max(0, sampleColor(c, this.posterColor));
+    this.poster = new THREE.CanvasTexture(c);
+    this.poster.colorSpace = THREE.SRGBColorSpace;
+  }
 
   extraInfo() {
     return this.duration ? `Duración ${formatDuration(this.duration)}` : '';
@@ -260,7 +325,7 @@ export class VideoExhibit extends Exhibit {
 
   setScreen(tex) {
     const mat = this.screen.material;
-    if (mat.map !== this.texture) disposeTexture(mat.map);
+    if (mat.map && mat.map !== this.texture && mat.map !== this.poster) disposeTexture(mat.map);
     mat.map = tex;
     mat.color.set(tex ? 0xffffff : 0x050505);
     mat.needsUpdate = true;
@@ -277,6 +342,8 @@ export class VideoExhibit extends Exhibit {
     this.sampleTimer -= dt;
     if (this.sampleTimer <= 0 && this.texture && (playing || this.targetLevel === 0)) {
       this.sampleTimer = settings.liveVideoColor ? 0.12 : 2;
+      // fotograma de muestra: uno real, pasado el arranque (que suele ser negro)
+      if (playing && !this.poster && v.currentTime >= Math.min(1, (v.duration || 10) / 10)) this.capturePoster(v, this.ctx);
       const level = sampleColor(v, this.target);
       if (level >= 0) this.targetLevel = level;
     }
@@ -288,10 +355,11 @@ export class VideoExhibit extends Exhibit {
     this.applyGlow();
   }
 
-  activate() {
+  activate(ctx) {
     this.active = true;
+    this.ctx = ctx;
     this.showPlaque();
-    this.setScreen(makeMessageTexture('▶  ' + this.title, 'Acércate para reproducir'));
+    this.setScreen(this.poster ?? makeMessageTexture('▶  ' + this.title, 'Acércate para reproducir'));
     const v = document.createElement('video');
     v.crossOrigin = 'anonymous';
     v.muted = true;
@@ -306,6 +374,7 @@ export class VideoExhibit extends Exhibit {
       // fuerza la decodificación de un fotograma para que la pantalla no quede negra
       if (v.paused && Number.isFinite(v.duration)) v.currentTime = Math.min(1, v.duration / 10);
     });
+    v.addEventListener('seeked', () => { if (v === this.video) this.capturePoster(v, ctx); }, { once: true });
     v.addEventListener('loadeddata', () => {
       if (v !== this.video || this.texture) return;
       this.texture = new THREE.VideoTexture(v);
@@ -368,6 +437,7 @@ export class VideoExhibit extends Exhibit {
     this.texture = null;
     this.targetLevel = 0;
     this.setGlow(BLACK, 0);
+    this.showPoster();
     this.failed = false;
     this.soundOn = false;
     this.autoSound = false;
@@ -376,6 +446,7 @@ export class VideoExhibit extends Exhibit {
 }
 
 // ---------------------------------------------------------------- Audio (gramófono)
+
 
 const BARS = 24;
 const BAR_RADIUS = 0.68;

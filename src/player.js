@@ -20,12 +20,25 @@ export class Player {
     this.grounded = true;
     this.safe = { x: 0, y: 0, z: 0 };
     this.bob = 0;
+    this.padMode = false;              // con mando se camina sin capturar el ratón
+    this.pad = { lx: 0, ly: 0, run: false };
     addEventListener('keydown', (e) => this.keys.add(e.code));
     addEventListener('keyup', (e) => this.keys.delete(e.code));
     addEventListener('blur', () => this.keys.clear());
   }
 
   get locked() { return this.controls.isLocked; }
+
+  /** Se puede caminar: ratón capturado o modo mando. */
+  get active() { return this.controls.isLocked || this.padMode; }
+
+  /** Mira con el stick derecho (rad/s escalados por la sensibilidad). */
+  look(dx, dy) {
+    const r = this.camera.rotation;
+    r.order = 'YXZ';
+    r.y -= dx;
+    r.x = Math.max(-1.45, Math.min(1.45, r.x - dy));
+  }
 
   get yaw() {
     this.camera.getWorldDirection(fwd);
@@ -45,17 +58,19 @@ export class Player {
 
   update(dt) {
     const k = this.keys;
-    const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0);
-    const r = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
+    const f = (k.has('KeyW') || k.has('ArrowUp') ? 1 : 0) - (k.has('KeyS') || k.has('ArrowDown') ? 1 : 0) - this.pad.ly;
+    const r = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0) + this.pad.lx;
     const walk = settings.walkSpeed;
-    const speed = k.has('ShiftLeft') || k.has('ShiftRight') ? walk * RUN_FACTOR : walk;
+    const speed = k.has('ShiftLeft') || k.has('ShiftRight') || this.pad.run ? walk * RUN_FACTOR : walk;
 
     this.camera.getWorldDirection(fwd);
     fwd.y = 0;
     fwd.normalize();
     target.set(fwd.x * f - fwd.z * r, 0, fwd.z * f + fwd.x * r);
-    if (!this.locked || target.lengthSq() === 0) target.set(0, 0, 0);
-    else target.normalize().multiplyScalar(speed);
+    // el stick da velocidades intermedias; el teclado, siempre la completa
+    const amount = Math.min(1, target.length());
+    if (!this.active || amount === 0) target.set(0, 0, 0);
+    else target.normalize().multiplyScalar(speed * amount);
     this.vel.lerp(target, 1 - Math.exp(-dt * 10));
 
     const p = this.camera.position;

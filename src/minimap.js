@@ -14,7 +14,9 @@ export class Minimap {
     const S = canvas.width, s = S / VIEW_M, half = VIEW_M / 2 + 5;
     const X = (x) => S / 2 + (x - pos.x) * s;
     const Z = (z) => S / 2 + (z - pos.z) * s;
-    const near = (b) => b.maxX > pos.x - half && b.minX < pos.x + half && b.maxZ > pos.z - half && b.minZ < pos.z + half;
+    // solo lo que está en el piso actual (las alas de otros pisos están justo encima o debajo)
+    const near = (b) => b.maxX > pos.x - half && b.minX < pos.x + half && b.maxZ > pos.z - half && b.minZ < pos.z + half
+      && (b.minY === undefined || (b.minY < pos.y + 7 && b.maxY > pos.y - 7));
     const rect = (b) => [X(b.minX), Z(b.minZ), (b.maxX - b.minX) * s, (b.maxZ - b.minZ) * s];
 
     g.clearRect(0, 0, S, S);
@@ -26,7 +28,8 @@ export class Minimap {
     g.fillRect(0, 0, S, S);
 
     g.fillStyle = '#4a4238';
-    g.fillRect(...rect(museum.main));
+    const floor = museum.floorAt(pos.y - 1.65);
+    g.fillRect(...rect(floor.bounds));
     for (const w of museum.wings) if (near(w.bounds)) g.fillRect(...rect(w.bounds));
 
     g.font = '600 9px system-ui, sans-serif';
@@ -72,5 +75,14 @@ export class Minimap {
     g.beginPath();
     g.arc(S / 2, S / 2, S / 2 - 1, 0, Math.PI * 2);
     g.stroke();
+    if (museum.floors.length > 1) {
+      g.fillStyle = 'rgba(12,11,10,0.85)';
+      g.fillRect(S / 2 - 34, S - 30, 68, 20);
+      g.fillStyle = '#e8d5a6';
+      g.font = '600 12px system-ui, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(`Piso ${floor.index}`, S / 2, S - 20);
+    }
   }
 }

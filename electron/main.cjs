@@ -2,8 +2,13 @@ const { app, BrowserWindow, ipcMain, dialog, protocol, shell, Menu } = require('
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const zlib = require('node:zlib');
+const { promisify } = require('node:util');
 const { Readable } = require('node:stream');
-const { scanFolder } = require('./scan.cjs');
+const { scanFolder, entriesFromDirs } = require('./scan.cjs');
+
+const gzip = promisify(zlib.gzip);
+const gunzip = promisify(zlib.gunzip);
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 if (process.env.IMUSEUM_USER_DATA) app.setPath('userData', process.env.IMUSEUM_USER_DATA);
@@ -42,7 +47,8 @@ function writeConfig(cfg) {
   try { fs.writeFileSync(configPath(), JSON.stringify(cfg, null, 2)); } catch (e) { console.warn(e); }
 }
 
-const THUMB_SIZES = new Set([512, 1024, 2048]);
+// 512/1024/2048: cuadros según la resolución elegida · 400: fotograma de las pantallas de video
+const THUMB_SIZES = new Set([400, 512, 1024, 2048]);
 
 function thumbPath(id, size) {
   const f = files[id];
@@ -107,18 +113,110 @@ ipcMain.handle('pick-folder', async () => {
   return res.canceled ? null : res.filePaths[0];
 });
 
-ipcMain.handle('scan', async (event, root) => {
+// ---------------------------------------------------------- escaneos guardados
+
+const scanDir = () => path.join(app.getPath('userData'), 'scans');
+const scanCachePath = (root) => path.join(scanDir(), `${crypto.createHash('sha1').update(root).digest('hex')}.json.gz`);
+
+async function loadScanCache(root) {
+  try {
+    const data = JSON.parse(await gunzip(await fs.promises.readFile(scanCachePath(root))));
+    return data.v === 1 && data.root === root ? data : null;
+  } catch { return null; }
+}
+
+async function saveScanCache(root, dirs) {
+  try {
+    await fs.promises.mkdir(scanDir(), { recursive: true });
+    const tmp = `${scanCachePath(root)}.tmp`;
+    await fs.promises.writeFile(tmp, await gzip(JSON.stringify({ v: 1, root, scannedAt: Date.now(), dirs })));
+    await fs.promises.rename(tmp, scanCachePath(root));
+  } catch (e) { console.warn('No se pudo guardar el escaneo', e.message); }
+}
+
+/**
+ * Asigna ids estables por ruta: un archivo conserva su id entre escaneos, así el museo
+ * abierto sigue funcionando mientras se busca si hay cambios.
+ */
+let pathToId = new Map();
+function assignIds(entries) {
+  const items = [];
+  for (const e of entries) {
+    let id = pathToId.get(e.path);
+    if (id === undefined) {
+      id = files.length;
+      pathToId.set(e.path, id);
+      files.push(null);
+    }
+    files[id] = { path: e.path, size: e.size, mtime: e.mtime };
+    items.push({ id, type: e.type, name: e.name, dir: e.dir, size: e.size, mtime: e.mtime });
+  }
+  return items;
+}
+
+function rememberRecent(root) {
+  const cfg = readConfig();
+  cfg.recent = [root, ...(cfg.recent ?? []).filter((r) => r !== root)].slice(0, 8);
+  writeConfig(cfg);
+}
+
+let currentRoot = null;
+function resetIds(root) {
+  if (root === currentRoot) return;
+  currentRoot = root;
+  files = [];
+  pathToId = new Map();
+}
+
+/** Abre una carpeta: desde el escaneo guardado si existe (instantáneo) o escaneándola. */
+ipcMain.handle('scan', async (event, root, { useCache = true } = {}) => {
+  resetIds(root);
+  rememberRecent(root);
+  if (useCache) {
+    const cached = await loadScanCache(root);
+    if (cached) {
+      return {
+        rootName: path.basename(root) || root, root, fromCache: true, scannedAt: cached.scannedAt,
+        items: assignIds(entriesFromDirs(root, cached.dirs)),
+      };
+    }
+  }
   const token = ++scanToken;
   const result = await scanFolder(root, {
     isCancelled: () => token !== scanToken,
     onProgress: (p) => { if (!event.sender.isDestroyed()) event.sender.send('scan-progress', p); },
   });
-  files = result.files;
-  const cfg = readConfig();
-  cfg.recent = [root, ...(cfg.recent ?? []).filter((r) => r !== root)].slice(0, 6);
-  writeConfig(cfg);
-  return { rootName: result.rootName, root, items: result.items };
+  await saveScanCache(root, result.dirs);
+  return { rootName: result.rootName, root, fromCache: false, scannedAt: Date.now(), items: assignIds(result.entries) };
 });
+
+/**
+ * Comprueba en segundo plano si la carpeta cambió desde el escaneo guardado. Solo relee
+ * las carpetas cuya fecha de modificación cambió.
+ */
+ipcMain.handle('rescan', async (event, root) => {
+  const cached = await loadScanCache(root);
+  const before = new Map(entriesFromDirs(root, cached?.dirs ?? {}).map((e) => [e.path, e]));
+  const result = await scanFolder(root, {
+    previous: cached?.dirs,
+    onProgress: (p) => { if (!event.sender.isDestroyed()) event.sender.send('rescan-progress', p); },
+  });
+  let added = 0, changed = 0;
+  for (const e of result.entries) {
+    const old = before.get(e.path);
+    if (!old) added++;
+    else if (old.size !== e.size || old.mtime !== e.mtime) changed++;
+    before.delete(e.path);
+  }
+  const removed = before.size;
+  await saveScanCache(root, result.dirs);
+  const items = root === currentRoot ? assignIds(result.entries) : [];
+  return { root, added, removed, changed, foldersRead: result.read, foldersReused: result.reused, items };
+});
+
+async function forgetScan(root) {
+  await fs.promises.rm(scanCachePath(root), { force: true });
+}
 
 ipcMain.on('scan-cancel', () => { scanToken++; });
 
@@ -127,17 +225,19 @@ const existingRecent = (cfg) => (cfg.recent ?? []).filter((p) => fs.existsSync(p
 ipcMain.handle('recent-folders', () => existingRecent(readConfig()));
 
 // Solo quita la carpeta del historial: nunca toca la carpeta en disco.
-ipcMain.handle('remove-recent', (_e, root) => {
+ipcMain.handle('remove-recent', async (_e, root) => {
   const cfg = readConfig();
   cfg.recent = (cfg.recent ?? []).filter((p) => p !== root);
   writeConfig(cfg);
+  await forgetScan(root); // el escaneo guardado es parte del historial
   return existingRecent(cfg);
 });
 
-ipcMain.handle('clear-recent', () => {
+ipcMain.handle('clear-recent', async () => {
   const cfg = readConfig();
   cfg.recent = [];
   writeConfig(cfg);
+  await fs.promises.rm(scanDir(), { recursive: true, force: true });
   return [];
 });
 
@@ -152,6 +252,56 @@ ipcMain.on('save-thumb', async (_e, id, data, size) => {
 
 ipcMain.on('reveal', (_e, id) => { if (files[id]) shell.showItemInFolder(files[id].path); });
 
+// ---------------------------------------------------------- actualizaciones automáticas
+
+const RELEASES_URL = 'https://github.com/beiacox/imuseum/releases/latest';
+let updater = null;
+function getUpdater() {
+  if (updater !== null) return updater;
+  try {
+    updater = require('electron-updater').autoUpdater;
+    updater.autoDownload = false;
+    updater.autoInstallOnAppQuit = true;
+    updater.logger = null;
+  } catch {
+    updater = false;
+  }
+  return updater;
+}
+// AppImage, Windows (NSIS) y macOS se actualizan solos; el .deb lo gestiona el sistema (apt)
+const canSelfUpdate = () => app.isPackaged && (process.platform !== 'linux' || !!process.env.APPIMAGE);
+
+ipcMain.handle('app-info', () => ({ version: app.getVersion(), packaged: app.isPackaged, selfUpdate: canSelfUpdate() }));
+
+ipcMain.handle('update-check', async () => {
+  if (!app.isPackaged) return { status: 'dev', current: app.getVersion() };
+  const u = getUpdater();
+  if (!u) return { status: 'unsupported', current: app.getVersion() };
+  try {
+    const r = await u.checkForUpdates();
+    const latest = r?.updateInfo?.version;
+    return {
+      status: r?.isUpdateAvailable ? 'available' : 'current',
+      current: app.getVersion(), latest, selfUpdate: canSelfUpdate(), url: RELEASES_URL,
+    };
+  } catch (e) {
+    return { status: 'error', current: app.getVersion(), error: e.message, url: RELEASES_URL };
+  }
+});
+
+ipcMain.handle('update-download', async (event) => {
+  const u = getUpdater();
+  if (!u || !canSelfUpdate()) return false;
+  const onProgress = (p) => { if (!event.sender.isDestroyed()) event.sender.send('update-progress', p.percent); };
+  u.on('download-progress', onProgress);
+  try { await u.downloadUpdate(); return true; } finally { u.off('download-progress', onProgress); }
+});
+
+ipcMain.on('update-install', () => { getUpdater()?.quitAndInstall?.(); });
+
+// solo se abren enlaces del propio proyecto
+ipcMain.on('open-releases', () => shell.openExternal(RELEASES_URL));
+
 async function dirSize(dir) {
   let total = 0, count = 0;
   try {
@@ -163,10 +313,10 @@ async function dirSize(dir) {
   return { bytes: total, count };
 }
 
-ipcMain.handle('cache-info', () => dirSize(thumbDir()));
+ipcMain.handle('cache-info', async () => ({ ...(await dirSize(thumbDir())), scans: await dirSize(scanDir()) }));
 ipcMain.handle('clear-cache', async () => {
   await fs.promises.rm(thumbDir(), { recursive: true, force: true });
-  return dirSize(thumbDir());
+  return { ...(await dirSize(thumbDir())), scans: await dirSize(scanDir()) };
 });
 
 // ------------------------------------------------------------------ ventana

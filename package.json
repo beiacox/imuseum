@@ -1,6 +1,6 @@
 {
   "name": "imuseum",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Museo virtual 3D que convierte una carpeta de fotos, videos y música en salas que se recorren a pie",
   "type": "module",
@@ -18,12 +18,15 @@
     "test:e2e": "vite build && node scripts/selftest.mjs",
     "screenshots": "vite build && node scripts/screenshots.mjs"
   },
-  "dependencies": {},
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
   "devDependencies": {
-    "three": "^0.186.1",
     "electron": "^44.7.0",
     "electron-builder": "^26.15.3",
-    "vite": "^8.3.4"
+    "three": "^0.186.1",
+    "vite": "^8.3.4",
+    "libheif-js": "^1.23.5"
   },
   "main": "electron/main.cjs",
   "author": {
@@ -61,7 +64,10 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "signtoolOptions": {
+        "publisherName": "beiacox"
+      }
     },
     "nsis": {
       "oneClick": false,
@@ -69,10 +75,22 @@
       "createDesktopShortcut": true
     },
     "mac": {
-      "target": "dmg",
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "category": "public.app-category.photography",
-      "icon": "build/icon.png"
-    }
+      "icon": "build/icon.png",
+      "hardenedRuntime": true
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "beiacox",
+        "repo": "imuseum",
+        "releaseType": "draft"
+      }
+    ]
   },
   "license": "MIT",
   "repository": {
